@@ -58,6 +58,25 @@ $env:DSH_RTL_RESTORE=1; irm https://raw.githubusercontent.com/Ksrw/dsh-rtl-smart
 
 or, from a clone, `.\dsh-rtl-smart-patcher-install\dsh-rtl.cmd restore`.
 
+### Options for the piped install
+
+`install.ps1` has no `param()` block on purpose: Windows PowerShell 5.1 cannot
+parse one out of piped input, which is exactly how the one-liner reaches it. When
+piped, options come from the environment instead:
+
+| Variable | Meaning |
+|---|---|
+| `DSH_RTL_RESTORE=1` | remove the plugin |
+| `DSH_RTL_DRY_RUN=1` | report the planned changes only |
+| `DSH_RTL_PROFILE_DIR` | full profile directory (overrides `DSH_PROFILE`) |
+| `DSH_RTL_SOURCE` | a local directory holding the plugin payload |
+| `DSH_RTL_REPO` | GitHub `owner/name` or `owner/name@ref` |
+| `DSH_RTL_REF` | branch, tag, or commit |
+
+From a file, the same options are ordinary parameters — `-ProfileDir`,
+`-Restore`, `-DryRun`, `-Source`, `-Repo`, `-Ref`, `-ProfileName` — through
+`dsh-rtl.cmd` or `install-args.ps1`.
+
 ## What it changes
 
 **In the app**, when RTL is on:
@@ -91,7 +110,8 @@ dsh-rtl-smart-patcher/                 the installable bundle payload
   lib/client.js                        browser half: RTL stylesheet + the toggle
   icon.svg, locale/*.json              Plugin Manager card text and artwork
 dsh-rtl-smart-patcher-install/         the installer
-  install.ps1                          local, remote, and uninstall paths
+  install.ps1                          the implementation: local, remote, uninstall
+  install-args.ps1                     parameter wrapper for file-based calls
   dsh-rtl.cmd                          CMD / PowerShell entry point
   tools/                               validators, browser-free smoke test, helpers
 test.ps1                               runs every offline check

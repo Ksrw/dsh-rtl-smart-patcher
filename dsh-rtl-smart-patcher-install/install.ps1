@@ -1,75 +1,45 @@
-﻿<#
-.SYNOPSIS
-  Install, update, or remove the RTL Smart Patcher plugin for DeepSeek Harness.
-
-.DESCRIPTION
-  The DeepSeek Harness desktop app owns its own profile
-  ($DSH_HOME\profiles\desktop), and that profile is deliberately closed to the
-  `dsh` command line. This script therefore performs exactly the two edits the
-  profile's own plugin manager performs for a local bundle:
-
-    1. copy the plugin package into
-       <profile>\node_modules\dsh-rtl-smart-patcher
-    2. add that package to the profile's `dependencies` and to
-       `dsh.profile.bundles` in <profile>\package.json
-
-  Nothing else is written: the profile's cordis.patch.yml belongs to the user and
-  to the app's plugin manager, and this bundle carries its own patch layer.
-
-  The plugin package is taken from, in order:
-    * -Source <directory>, when given;
-    * the `dsh-rtl-smart-patcher` directory beside this script;
-    * the repository tarball named by -Repo, which is what makes the one-line
-      remote install work when this script is piped into Invoke-Expression.
-
-  -Restore reverses both edits and deletes the copied package.
-
-  A running app picks a newly selected bundle up on its next start; reloading the
-  page alone is not enough for a first installation.
-
-.PARAMETER ProfileName
-  Profile to install into. Defaults to $env:DSH_PROFILE, then 'desktop'.
-
-.PARAMETER ProfileDir
-  Full profile directory, overriding -ProfileName.
-
-.PARAMETER Source
-  Directory that already contains the plugin payload (with package.json).
-
-.PARAMETER Repo
-  GitHub 'owner/name' (or 'owner/name@ref') to download the plugin from.
-
-.PARAMETER Ref
-  Branch, tag, or commit to download when -Repo carries no '@ref'.
-
-.PARAMETER Restore
-  Remove the plugin from the profile instead of installing it.
-
-.PARAMETER DryRun
-  Report the planned changes without writing anything.
-
-.EXAMPLE
-  .\install.ps1
-  Installs from the payload beside the script into the desktop profile.
-
-.EXAMPLE
-  .\install.ps1 -Restore
-  Uninstalls the plugin from the desktop profile.
-
-.EXAMPLE
-  irm https://raw.githubusercontent.com/OWNER/REPO/main/dsh-rtl-smart-patcher-install/install.ps1 | iex
-  Downloads the plugin from GitHub and installs it in one line.
-#>
-[CmdletBinding()]
-param(
-    [string] $ProfileName,
-    [string] $ProfileDir,
-    [string] $Source,
-    [string] $Repo = 'Ksrw/dsh-rtl-smart-patcher',
-    [string] $Ref = 'main',
-    [switch] $Restore,
-    [switch] $DryRun
-)
+﻿# RTL Smart Patcher installer for DeepSeek Harness.
+#
+# Install, update, or remove the plugin. The desktop app owns its own profile
+# ($DSH_HOME\profiles\desktop) and keeps it closed to the `dsh` command line, so
+# this script performs exactly the two edits that profile's own plugin manager
+# performs for a local bundle:
+#
+#   1. copy the plugin package into
+#      <profile>\node_modules\dsh-rtl-smart-patcher
+#   2. add that package to the profile's `dependencies` and to
+#      `dsh.profile.bundles` in <profile>\package.json
+#
+# Nothing else is written: the profile's cordis.patch.yml belongs to the user and
+# to the app's plugin manager, and this bundle carries its own patch layer.
+#
+# It runs in two shapes and behaves the same in both:
+#
+#   * as a file, with parameters:
+#       .\install.ps1 -ProfileDir "D:\some\profile" -DryRun
+#       .\install.ps1 -Restore
+#   * piped from GitHub, where parameters cannot exist:
+#       irm <raw url of this file> | iex
+#       $env:DSH_RTL_RESTORE=1; irm <raw url> | iex
+#
+# When piped, options are read from the environment instead, because Windows
+# PowerShell 5.1 cannot parse a param() block or a [CmdletBinding()] attribute
+# out of piped input. The recognized variables are:
+#
+#   DSH_PROFILE          profile name (a launched Harness already sets this)
+#   DSH_PROFILE_DIR      full profile directory, winning over DSH_PROFILE
+#   DSH_RTL_PROFILE_DIR  the same, explicit to this installer
+#   DSH_RTL_SOURCE       directory holding the plugin payload
+#   DSH_RTL_REPO         GitHub 'owner/name' or 'owner/name@ref'
+#   DSH_RTL_REF          branch, tag, or commit
+#   DSH_RTL_RESTORE=1    remove the plugin
+#   DSH_RTL_DRY_RUN=1    report the planned changes only
+#
+# The plugin payload is taken from, in order: DSH_RTL_SOURCE when set; the
+# `dsh-rtl-smart-patcher` directory beside this file; the GitHub archive named by
+# DSH_RTL_REPO, which is what makes the piped one-line install work with no
+# checkout at all. A running app picks a newly selected bundle up on its next
+# start; reloading the page alone is not enough for a first installation.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -85,6 +55,27 @@ $payload = @(
     'locale\en.json',
     'locale\fa.json'
 )
+
+# Options arrive as parameters when this runs as a file, and stay unset when it
+# arrives through Invoke-Expression; the environment takes over in that case.
+if (-not (Get-Variable -Name ProfileName -ErrorAction SilentlyContinue)) { $ProfileName = $null }
+if (-not (Get-Variable -Name ProfileDir -ErrorAction SilentlyContinue)) { $ProfileDir = $null }
+if (-not (Get-Variable -Name Source -ErrorAction SilentlyContinue)) { $Source = $null }
+if (-not (Get-Variable -Name Repo -ErrorAction SilentlyContinue)) { $Repo = $null }
+if (-not (Get-Variable -Name Ref -ErrorAction SilentlyContinue)) { $Ref = $null }
+if (-not (Get-Variable -Name Restore -ErrorAction SilentlyContinue)) { $Restore = $false }
+if (-not (Get-Variable -Name DryRun -ErrorAction SilentlyContinue)) { $DryRun = $false }
+
+if (-not $ProfileName -and $env:DSH_PROFILE) { $ProfileName = $env:DSH_PROFILE }
+if (-not $ProfileDir -and $env:DSH_RTL_PROFILE_DIR) { $ProfileDir = $env:DSH_RTL_PROFILE_DIR }
+if (-not $ProfileDir -and $env:DSH_PROFILE_DIR) { $ProfileDir = $env:DSH_PROFILE_DIR }
+if (-not $Source -and $env:DSH_RTL_SOURCE) { $Source = $env:DSH_RTL_SOURCE }
+if (-not $Repo -and $env:DSH_RTL_REPO) { $Repo = $env:DSH_RTL_REPO }
+if (-not $Ref -and $env:DSH_RTL_REF) { $Ref = $env:DSH_RTL_REF }
+if (-not $Restore -and $env:DSH_RTL_RESTORE) { $Restore = $true }
+if (-not $DryRun -and $env:DSH_RTL_DRY_RUN) { $DryRun = $true }
+if (-not $Repo) { $Repo = 'Ksrw/dsh-rtl-smart-patcher' }
+if (-not $Ref) { $Ref = 'main' }
 
 # $PSScriptRoot is empty when the script arrives through Invoke-Expression.
 $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
@@ -113,14 +104,14 @@ function Write-Warn2([string]$Message) { Write-Host "  [!!] $Message" -Foregroun
 function Resolve-ProfileDirectory {
     if ($ProfileDir) { return (Resolve-Path -LiteralPath $ProfileDir).Path }
 
-    $name = if ($ProfileName) { $ProfileName } elseif ($env:DSH_PROFILE) { $env:DSH_PROFILE } else { 'desktop' }
+    $name = if ($ProfileName) { $ProfileName } else { 'desktop' }
     $harnessHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME '.dsh' }
     return (Join-Path $harnessHome "profiles\$name")
 }
 
 function Read-ProfileManifest([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) {
-        throw "profile manifest not found: $Path`nStart the DeepSeek Harness app once so it creates its profile, or pass -ProfileDir."
+        throw "profile manifest not found: $Path`nStart the DeepSeek Harness app once so it creates its profile, or set `$env:DSH_PROFILE_DIR."
     }
     return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
@@ -149,16 +140,14 @@ function Get-DependencyTable($Manifest) {
     return $table
 }
 
-<#
-  Resolve the directory that holds the plugin payload. Falls back to a GitHub
-  archive, so the piped one-line install works with no checkout at all. A zip
-  (GitHub's refs/heads/.../zip) and a tarball both work, because Windows'
-  bundled tar.exe reads either format; only the extension differs.
-#>
+# Resolve the directory that holds the plugin payload. Falls back to a GitHub
+# archive, so the piped one-line install works with no checkout at all. A zip
+# (GitHub's refs/heads/.../zip) and a tarball both work, because Windows'
+# bundled tar.exe reads either format; only the extension differs.
 function Resolve-PayloadDirectory {
     if ($Source) {
         if (-not (Test-Path -LiteralPath (Join-Path $Source 'package.json'))) {
-            throw "-Source '$Source' does not contain package.json"
+            throw "the payload directory does not contain package.json: $Source"
         }
         return (Resolve-Path -LiteralPath $Source).Path
     }
@@ -204,7 +193,7 @@ function Resolve-PayloadDirectory {
     return $resolved
 }
 
-# ── resolution ───────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------- resolution
 
 Write-Host ''
 Write-Host "RTL Smart Patcher — $(if ($Restore) { 'uninstall' } else { 'install' })" -ForegroundColor Cyan
@@ -229,7 +218,7 @@ $bundles = @()
 if ($manifest.dsh.profile.PSObject.Properties['bundles']) { $bundles = @($manifest.dsh.profile.bundles) }
 $dependencies = Get-DependencyTable $manifest
 
-# ── uninstall ────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------- uninstall
 
 if ($Restore) {
     $changed = $false
@@ -268,7 +257,7 @@ if ($Restore) {
     return
 }
 
-# ── install ──────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------- install
 
 $payloadDir = Resolve-PayloadDirectory
 

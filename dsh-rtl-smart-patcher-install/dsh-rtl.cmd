@@ -27,11 +27,11 @@ echo dsh-rtl: unknown action "%ACTION%"
 goto usage
 
 :run
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%install.ps1" %2 %3 %4 %5 %6
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%install-args.ps1" %2 %3 %4 %5 %6
 exit /b %errorlevel%
 
 :run_restore
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%install.ps1" -Restore %2 %3 %4 %5 %6
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%install-args.ps1" -Restore %2 %3 %4 %5 %6
 exit /b %errorlevel%
 
 :usage

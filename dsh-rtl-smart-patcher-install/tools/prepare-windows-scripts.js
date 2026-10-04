@@ -25,7 +25,7 @@ const BOM = '\uFEFF';
 const PARAM_DECLARATION = /^(\s*)\[([A-Za-z][A-Za-z0-9_.]*)\]\$([A-Za-z_][A-Za-z0-9_]*)(.*)$/;
 
 for (const dir of dirs) {
-  for (const name of ['install.ps1', 'dsh-rtl.cmd', 'test.ps1']) {
+  for (const name of ['install.ps1', 'install-args.ps1', 'dsh-rtl.cmd', 'test.ps1']) {
     const file = join(dir, name);
     if (!existsSync(file)) continue;
     const original = readFileSync(file, 'utf8');
