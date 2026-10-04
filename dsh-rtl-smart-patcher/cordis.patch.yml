@@ -1,0 +1,8 @@
+# dsh-rtl-smart-patcher bundle layer.
+# Inserted after every shipped layer, so it only adds one browser row and
+# changes no shipped configuration.
+- insert:
+    - id: ui-rtl-smart-patcher
+      name: dsh-rtl-smart-patcher
+      config:
+        enabled: true

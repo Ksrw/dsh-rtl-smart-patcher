@@ -1,0 +1,37 @@
+{
+  "name": "dsh-rtl-smart-patcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Persian/Arabic (RTL) smart patcher for the DeepSeek Harness Web UI",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml"
+  ],
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}
