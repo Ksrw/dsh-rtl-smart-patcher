@@ -116,18 +116,74 @@ function Read-ProfileManifest([string]$Path) {
     return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
-function Write-ProfileManifest([string]$Path, $Manifest) {
-    # Windows PowerShell 5.1 has no System.Text.Json and its ConvertTo-Json
-    # indents far too deeply for a readable diff, so the manifest is written in
-    # the app's own shape (no BOM, trailing newline) and then re-indented to two
-    # spaces by tools/format-profile-manifest.js when node and that tool exist.
-    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    $json = $Manifest | ConvertTo-Json -Depth 32
-    [System.IO.File]::WriteAllText($Path, ($json + "`n"), $utf8NoBom)
-    $formatter = Join-Path $workRoot 'tools\format-profile-manifest.js'
-    if ((Test-Path -LiteralPath $formatter) -and $script:nodePath) {
-        & $script:nodePath $formatter $Path | Out-Null
+# JSON helpers. The manifest is rewritten in the same shape the app's own writer
+# uses: two-space indentation, no BOM, one trailing newline, and the properties in
+# the order they already had. ConvertTo-Json is avoided because Windows PowerShell
+# 5.1 indents far too deeply and pads its output. The function names are prefixed
+# so nothing collides when the file is loaded into an existing session.
+function Get-DshRtlIndent([int]$Depth) { '  ' * $Depth }
+
+function ConvertTo-DshRtlJsonString([string]$Value) {
+    $builder = New-Object System.Text.StringBuilder
+    [void] $builder.Append('"')
+    foreach ($character in $Value.ToCharArray()) {
+        switch ($character) {
+            '"' { [void]$builder.Append('\"') }
+            '\' { [void]$builder.Append('\\') }
+            "`b" { [void]$builder.Append('\b') }
+            "`f" { [void]$builder.Append('\f') }
+            "`n" { [void]$builder.Append('\n') }
+            "`r" { [void]$builder.Append('\r') }
+            "`t" { [void]$builder.Append('\t') }
+            default {
+                if ([int]$character -lt 32) { [void]$builder.Append('\u{0:x4}' -f [int]$character) }
+                else { [void]$builder.Append($character) }
+            }
+        }
     }
+    [void] $builder.Append('"')
+    return $builder.ToString()
+}
+
+function ConvertTo-DshRtlJson($Value, [int]$Depth = 0) {
+    $indent = Get-DshRtlIndent $Depth
+    $inner = Get-DshRtlIndent ($Depth + 1)
+
+    if ($null -eq $Value) { return 'null' }
+    if ($Value -is [bool]) { if ($Value) { return 'true' } else { return 'false' } }
+    if ($Value -is [string]) { return (ConvertTo-DshRtlJsonString $Value) }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) {
+        return [string]$Value
+    }
+
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $pairs = @()
+        foreach ($property in $Value.PSObject.Properties) {
+            $pairs += "$inner$(ConvertTo-DshRtlJsonString $property.Name): $(ConvertTo-DshRtlJson $property.Value ($Depth + 1))"
+        }
+        if ($pairs.Count -eq 0) { return '{}' }
+        return "{`n" + ($pairs -join ",`n") + "`n$indent}"
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        $pairs = @()
+        foreach ($key in $Value.Keys) {
+            $pairs += "$inner$(ConvertTo-DshRtlJsonString ([string]$key)): $(ConvertTo-DshRtlJson $Value[$key] ($Depth + 1))"
+        }
+        if ($pairs.Count -eq 0) { return '{}' }
+        return "{`n" + ($pairs -join ",`n") + "`n$indent}"
+    }
+
+    $items = @($Value)
+    if ($items.Count -eq 0) { return '[]' }
+    $lines = foreach ($item in $items) { "$inner$(ConvertTo-DshRtlJson $item ($Depth + 1))" }
+    return "[`n" + ($lines -join ",`n") + "`n$indent]"
+}
+
+function Write-ProfileManifest([string]$Path, $Manifest) {
+    $json = ConvertTo-DshRtlJson $Manifest 0
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, ($json + "`n"), $utf8NoBom)
 }
 
 function Get-DependencyTable($Manifest) {
